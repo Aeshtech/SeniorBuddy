@@ -63,8 +63,47 @@ export default function Header() {
               })}
             </nav>
 
-            {/* Quick Action / Emergency SOS */}
-            <div className="flex items-center gap-3">
+            {/* Accessibility Controls & Emergency SOS */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Text Size Scaler */}
+              <div
+                className="flex items-center bg-stone-100 rounded-xl p-1 border border-stone-200"
+                title="Change Text Size"
+                role="group"
+                aria-label="Text Size Controls"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    document.documentElement.style.fontSize = '17px';
+                  }}
+                  className="px-2 py-1 text-xs font-bold text-stone-700 hover:bg-white rounded-lg transition-all cursor-pointer"
+                  aria-label="Normal font size"
+                >
+                  A
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    document.documentElement.style.fontSize = '21px';
+                  }}
+                  className="px-2 py-1 text-sm font-bold text-amber-900 bg-white shadow-2xs rounded-lg transition-all cursor-pointer"
+                  aria-label="Large font size"
+                >
+                  A+
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    document.documentElement.style.fontSize = '25px';
+                  }}
+                  className="px-2 py-1 text-base font-black text-amber-950 hover:bg-white rounded-lg transition-all cursor-pointer"
+                  aria-label="Extra large font size"
+                >
+                  A++
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setShowSosModal(true)}

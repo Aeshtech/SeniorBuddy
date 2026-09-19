@@ -519,44 +519,15 @@ export function addEmergencyContact(name: string, relation: string, phone: strin
 
 // ================= My Day =================
 export function getMyDay(): MyDay {
-  const allReminders = getActiveReminders();
-  const allTasks = getActiveTasks();
+  const allReminders = getAllReminders();
+  const allTasks = getAllTasks();
   const allAppointments = getAllAppointments();
   const allMedications = getAllMedications();
 
-  // Filter for today or urgent
-  const importantReminders = allReminders.filter((r) => {
-    try {
-      const dueDate = new Date(r.dueDate);
-      return isToday(dueDate) || isTomorrow(dueDate) || isThisWeek(dueDate);
-    } catch {
-      return true;
-    }
-  });
-
-  const importantTasks = allTasks.filter((t) => {
-    if (!t.dueDate) return true;
-    try {
-      const dueDate = new Date(t.dueDate);
-      return isToday(dueDate) || isTomorrow(dueDate) || isThisWeek(dueDate);
-    } catch {
-      return true;
-    }
-  });
-
-  const upcomingAppointments = allAppointments.filter((a) => {
-    try {
-      const appointmentDate = new Date(a.date);
-      return isToday(appointmentDate) || isTomorrow(appointmentDate) || isThisWeek(appointmentDate);
-    } catch {
-      return true;
-    }
-  });
-
   return {
-    reminders: importantReminders,
-    tasks: importantTasks,
-    appointments: upcomingAppointments,
+    reminders: allReminders,
+    tasks: allTasks,
+    appointments: allAppointments,
     medications: allMedications,
   };
 }

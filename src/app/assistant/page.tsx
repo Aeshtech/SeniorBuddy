@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import SpeechSpeaker from '@/components/SpeechSpeaker';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   image?: string;
+  actionLink?: { href: string; label: string };
 }
 
 export default function AssistantPage() {
@@ -103,11 +105,24 @@ export default function AssistantPage() {
         });
 
         const data = await res.json();
+        let actionLink = undefined;
+        if (data.toolCalls && data.toolCalls.length > 0) {
+          const names = data.toolCalls.map((tc: any) => tc.function?.name);
+          if (names.includes('create_reminder') || names.includes('add_appointment') || names.includes('get_my_day')) {
+            actionLink = { href: '/my-day', label: '📅 View on My Day Schedule ➔' };
+          } else if (names.includes('toggle_medication') || names.includes('add_medication') || names.includes('get_medications')) {
+            actionLink = { href: '/medications', label: '💊 Open Pill Tracker ➔' };
+          } else if (names.includes('log_bill') || names.includes('get_bills')) {
+            actionLink = { href: '/bills', label: '📄 View Saved Bills ➔' };
+          }
+        }
+
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
             content: data.message || "I'm right here with you. What would you like to check next?",
+            actionLink,
           },
         ]);
       }
@@ -274,6 +289,17 @@ export default function AssistantPage() {
                   </div>
                 )}
                 <div className="whitespace-pre-wrap">{message.content}</div>
+
+                {message.actionLink && (
+                  <div className="mt-3">
+                    <Link
+                      href={message.actionLink.href}
+                      className="inline-flex items-center gap-2 bg-amber-200 hover:bg-amber-300 text-amber-950 font-black px-4 py-2 rounded-xl text-sm sm:text-base transition-all no-underline shadow-2xs"
+                    >
+                      {message.actionLink.label}
+                    </Link>
+                  </div>
+                )}
 
                 {!isUser && (
                   <div className="mt-3 pt-2 border-t border-stone-200/80 flex items-center justify-end">

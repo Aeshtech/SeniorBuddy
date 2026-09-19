@@ -8,6 +8,7 @@ import {
   createBill,
   getAllBills,
 } from '../db';
+import { format } from 'date-fns';
 
 export interface ToolResult {
   success: boolean;
@@ -18,11 +19,31 @@ export interface ToolResult {
 
 export async function createReminderTool(title: string, dueDate: string, description?: string): Promise<ToolResult> {
   try {
-    const reminder = createReminder(title, description, dueDate);
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    let normalizedDueDate = dueDate;
+
+    if (!dueDate || typeof dueDate !== 'string') {
+      normalizedDueDate = `${todayStr}T14:00`;
+    } else {
+      const lower = dueDate.toLowerCase().trim();
+      if (lower.includes('afternoon') || lower.includes('pm')) {
+        normalizedDueDate = `${todayStr}T14:00`;
+      } else if (lower.includes('morning') || lower.includes('am')) {
+        normalizedDueDate = `${todayStr}T09:00`;
+      } else if (lower.includes('evening') || lower.includes('night')) {
+        normalizedDueDate = `${todayStr}T18:30`;
+      } else if (lower === 'today' || lower === 'now') {
+        normalizedDueDate = `${todayStr}T12:00`;
+      } else if (!lower.includes('-')) {
+        normalizedDueDate = `${todayStr} ${dueDate}`;
+      }
+    }
+
+    const reminder = createReminder(title, description, normalizedDueDate);
     return {
       success: true,
       data: reminder,
-      message: `Created reminder for "${title}" on ${dueDate}`,
+      message: `Created reminder for "${title}" scheduled for ${normalizedDueDate}`,
     };
   } catch (error) {
     return {
