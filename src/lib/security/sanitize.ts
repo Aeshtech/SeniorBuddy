@@ -4,13 +4,17 @@
  * for all API endpoints to prevent injection, abuse, and data corruption.
  */
 
+import type { BillRecord } from '@/lib/db/schema';
+
 // ── Constants ─────────────────────────────────────────────────────────────
 const MAX_STRING_LENGTH = 500;
 const MAX_AMOUNT = 1_000_000;
 const MIN_AMOUNT = 0;
 
-const ALLOWED_BILL_CATEGORIES = new Set([
-  'utility', 'medical', 'insurance', 'rent', 'tax', 'subscription', 'other',
+export type BillCategory = NonNullable<BillRecord['category']>;
+
+const ALLOWED_BILL_CATEGORIES = new Set<BillCategory>([
+  'utility', 'medical', 'phone', 'subscription', 'other',
 ]);
 
 const SCAM_KEYWORDS = [
@@ -108,12 +112,11 @@ export function sanitizeDateString(value: unknown, fieldName = 'dueDate'): strin
 
 // ── Category validator ────────────────────────────────────────────────────
 export function sanitizeBillCategory(value: unknown): BillCategory {
-  if (!value || !ALLOWED_BILL_CATEGORIES.has(value as string)) {
+  if (!value || !ALLOWED_BILL_CATEGORIES.has(value as BillCategory)) {
     return 'other';
   }
   return value as BillCategory;
 }
-type BillCategory = 'utility' | 'medical' | 'insurance' | 'rent' | 'tax' | 'subscription' | 'other';
 
 // ── Scam detection ────────────────────────────────────────────────────────
 export interface ScamAnalysis {
