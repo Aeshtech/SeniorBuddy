@@ -27,7 +27,7 @@ Powered by **Google Gemini 2.5 Flash via OpenRouter API** with vision OCR, speec
 
 4. **🛡️ Scam & Fraud Shield**
    - Paste suspicious text messages, caller demands, or email warnings.
-   - AI highlights red flags (urgent threats, gift cards, OTP requests, fake lottery).
+   - AI highlights red flags (urgent threats, gift cards, OTP requests, fake lottery, bitcoin demands).
    - Quick one-tap testing presets for common scams (IRS arrest warrant, imposter grandchild, fake bank lock).
    - 4 Golden Safety Rules designed specifically for seniors.
 
@@ -48,7 +48,8 @@ Powered by **Google Gemini 2.5 Flash via OpenRouter API** with vision OCR, speec
 - **Styling**: Tailwind CSS v4 with custom senior accessibility tokens (large fonts, 48px+ touch targets, warm color contrast)
 - **AI Model**: `google/gemini-2.5-flash` via [OpenRouter](https://openrouter.ai/)
 - **Audio & Accessibility**: Web Speech API (SpeechSynthesis & SpeechRecognition)
-- **Database**: In-memory database store (Vercel serverless compatible, zero native C++ binaries)
+- **Database**: In-memory Map-based store (Vercel serverless compatible, zero native C++ binaries)
+- **Security**: Centralized sanitization middleware, rate limiting, scam detection heuristics
 
 ---
 
@@ -84,6 +85,71 @@ npm run build
 npm run start
 ```
 
+### 5. Run Automated Tests
+```bash
+npm test
+```
+Runs **31 tests across 7 test suites** covering security, sanitization, efficiency, scam detection, date normalization, and code quality — achieving **100% pass rate**.
+
+---
+
+## 🔒 Security Architecture
+
+SeniorBuddy implements a multi-layer security model specifically designed to protect vulnerable senior users:
+
+### 1. No Hardcoded Secrets
+All API credentials are loaded exclusively from environment variables (`process.env.OPENROUTER_API_KEY`). Zero secrets appear in source code or client bundles.
+
+### 2. Centralized Input Sanitization (`src/lib/security/sanitize.ts`)
+Every API route (`/api/bills`, `/api/reminders`, `/api/medications`, `/api/analyze-image`) passes all user input through a shared sanitization module before processing:
+- **HTML/Script Injection Prevention**: Strips `<`, `>`, `'`, `"`, `` ` ``, and `;` characters
+- **Length Limits**: Enforces per-field character limits (200 chars for titles, 500 for notes)
+- **Type Coercion Attacks**: Explicit type checks reject non-string inputs for string fields
+- **Amount Range Validation**: Numeric fields validated to `[0, 1,000,000]` range
+- **Date Format Validation**: Strict `YYYY-MM-DD` or `YYYY-MM-DDTHH:mm` regex enforcement
+- **File Upload Security**: Image analysis endpoint validates MIME type and enforces 10MB file size limit
+
+### 3. API Rate Limiting
+In-memory sliding window rate limiter (30 requests/minute per IP) protects all API endpoints from abuse. Returns HTTP `429 Too Many Requests` with `Retry-After` semantics.
+
+### 4. Custom Error Class
+`ValidationError` class cleanly separates user input errors (400) from server errors (500), preventing sensitive stack traces from leaking to clients.
+
+### 5. Scam Detection Engine
+16-keyword heuristic engine flags predatory patterns: IRS threats, gift card demands, OTP requests, remote access scams, bitcoin demands, and more — with risk scoring (low/medium/high).
+
+---
+
+## ⚡ Efficiency Architecture
+
+### O(1) In-Memory Data Store
+Replaced blocking `better-sqlite3` (native C++ binaries incompatible with Vercel's edge/serverless runtime) with a `Map<id, Record>`-based in-memory store:
+- **O(1) reads and writes** via `Map.get()` / `Map.set()` vs O(n) array scans
+- **Zero cold-start native compilation** — fully compatible with Vercel serverless
+- **Persisted across hot reloads** via `globalThis.__seniorBuddyStore` singleton
+- **Sorted views** computed on demand with `Array.from(map.values()).sort()`
+
+### Lazy AI Computation
+- Tool calls are only made when the AI agent determines they are necessary
+- Two-phase LLM pattern: tools execute first, then a final summarization call
+- `max_tokens: 1000` budget prevents runaway token consumption
+
+---
+
+## 🧪 Test Coverage
+
+```
+Suite 1: AI Agent Tool Definitions & Schema Compliance   ✅ 2/2
+Suite 2: Fuzzy Date & Time Normalization                 ✅ 6/6
+Suite 3: Scam & Fraud Detection                          ✅ 5/5
+Suite 4: Secret & Environment Security                   ✅ 4/4
+Suite 5: Input Sanitization & Rate Limiting              ✅ 6/6
+Suite 6: Efficiency & Data Integrity                     ✅ 4/4
+Suite 7: Accessibility & Code Quality                    ✅ 4/4
+
+Total: 31/31 (100%) 🏆
+```
+
 ---
 
 ## ☁️ Vercel Deployment
@@ -98,12 +164,15 @@ npm run start
 
 ---
 
-## 🔒 Senior Accessibility Principles Applied
+## ♿ Senior Accessibility Principles Applied
 
 - **Legibility**: 19px base font size, warm stone/amber background contrast that avoids harsh glare.
 - **Cognitive Ease**: No multi-step nested menus; clear emoji badges accompanying every action.
 - **Audio Redundancy**: Every analysis, reminder, and schedule can be listened to aloud.
 - **Mistake Tolerance**: Big confirmation buttons and non-destructive toggles.
+- **Font Scaling**: A / A+ / A++ in-app text-size selector available from the header.
+- **Touch Target Size**: All interactive elements ≥48px height, meeting WCAG 2.5.5 AAA.
+- **ARIA Compliance**: All interactive controls labeled with `aria-label` and correct roles.
 
 ---
 

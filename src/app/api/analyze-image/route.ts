@@ -1,17 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { aiClient, AI_MODEL } from '@/lib/ai/client';
 import { createBill } from '@/lib/db';
+import { checkRateLimit } from '@/lib/security/sanitize';
+
+const ALLOWED_IMAGE_TYPES = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
+]);
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') ?? 'unknown';
+    const { allowed } = checkRateLimit(`analyze-image:${ip}`);
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please wait a moment.' }, { status: 429 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const context = (formData.get('context') as string) || 'Analyze this document or bill for a senior citizen';
     const autoSave = formData.get('autoSave') === 'true';
 
     if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+      return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
     }
+
+    // ── Security: validate file type ─────────────────────────────────────
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      return NextResponse.json(
+        { error: `Unsupported file type "${file.type}". Only image files (JPEG, PNG, WebP, GIF) are allowed.` },
+        { status: 400 }
+      );
+    }
+
+    // ── Security: validate file size ─────────────────────────────────────
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json(
+        { error: `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed is ${MAX_FILE_SIZE_MB} MB.` },
+        { status: 400 }
+      );
+    }
+
+    // ── Security: sanitize context string (no HTML injection) ─────────────
+    const safeContext = context.replace(/<[^>]*>/g, '').replace(/[<>'"`;]/g, '').trim().slice(0, 300);
 
     // Convert file to base64 data URL
     const bytes = await file.arrayBuffer();
@@ -44,22 +76,17 @@ Respond ONLY with the valid JSON object, without markdown formatting or code fen
     const response = await aiClient.chat.completions.create({
       model: AI_MODEL,
       messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
+        { role: 'system', content: systemPrompt },
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: `${context}. Please extract all details carefully, check if it's safe or a scam, and summarize in simple terms.`,
+              text: `${safeContext}. Please extract all details carefully, check if it's safe or a scam, and summarize in simple terms.`,
             },
             {
               type: 'image_url',
-              image_url: {
-                url: dataUrl,
-              },
+              image_url: { url: dataUrl },
             },
           ],
         },
@@ -69,7 +96,7 @@ Respond ONLY with the valid JSON object, without markdown formatting or code fen
     });
 
     const rawContent = response.choices[0]?.message?.content || '{}';
-    let structuredData: any = {};
+    let structuredData: Record<string, unknown> = {};
 
     try {
       const cleaned = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -91,18 +118,18 @@ Respond ONLY with the valid JSON object, without markdown formatting or code fen
 
     // Auto-save bill to store if requested and it is a bill
     let savedBill = null;
-    if (autoSave && structuredData.amountDue !== null && structuredData.amountDue > 0) {
+    if (autoSave && structuredData.amountDue !== null && Number(structuredData.amountDue) > 0) {
       try {
         savedBill = createBill(
-          structuredData.title || file.name,
-          structuredData.vendor || 'Unknown Vendor',
+          String(structuredData.title || file.name).slice(0, 200),
+          String(structuredData.vendor || 'Unknown Vendor').slice(0, 200),
           Number(structuredData.amountDue),
-          structuredData.dueDate || new Date().toISOString().split('T')[0],
+          String(structuredData.dueDate || new Date().toISOString().split('T')[0]),
           false,
           'utility',
-          structuredData.summary,
-          structuredData.accountNumber || undefined,
-          structuredData.confidenceScore || 0.95
+          String(structuredData.summary || '').slice(0, 500),
+          structuredData.accountNumber ? String(structuredData.accountNumber).slice(0, 100) : undefined,
+          typeof structuredData.confidenceScore === 'number' ? structuredData.confidenceScore : 0.95
         );
       } catch (err) {
         console.error('Failed to auto-save bill:', err);
