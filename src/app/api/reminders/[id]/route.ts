@@ -3,13 +3,17 @@ import { updateReminder, deleteReminder } from '@/lib/db';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id } = await context.params;
+    const numId = parseInt(id, 10);
     const body = await request.json();
 
-    const reminder = updateReminder(id, body);
+    const reminder = updateReminder(numId, body);
+    if (!reminder) {
+      return NextResponse.json({ error: 'Reminder not found' }, { status: 404 });
+    }
     return NextResponse.json(reminder);
   } catch (error) {
     console.error('Reminder PATCH error:', error);
@@ -22,11 +26,12 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
-    deleteReminder(id);
+    const { id } = await context.params;
+    const numId = parseInt(id, 10);
+    deleteReminder(numId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Reminder DELETE error:', error);

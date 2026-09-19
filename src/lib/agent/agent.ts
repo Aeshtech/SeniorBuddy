@@ -1,11 +1,5 @@
-import OpenAI from 'openai';
+import { aiClient, AI_MODEL } from '@/lib/ai/client';
 import { toolDefinitions, executeTool, ToolResult } from './tools';
-
-// Initialize OpenAI client with compatible API
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'your-api-key-here',
-  baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
-});
 
 export interface AgentMessage {
   role: 'user' | 'assistant' | 'system';
@@ -18,116 +12,114 @@ export interface AgentResponse {
   toolResults?: ToolResult[];
 }
 
-const systemPrompt = `You are SeniorBuddy, a helpful AI assistant for seniors. Your goal is to help seniors understand information, identify what needs attention, decide what to do next, and stay organized.
+const systemPrompt = `You are SeniorBuddy, an empathetic, patient, and ultra-reliable AI companion designed specifically for senior citizens and grandparents.
 
-Key behaviors:
-- Use simple, clear language - avoid jargon
-- Be patient and understanding
-- Ask for clarification when needed
-- Always explain what you're doing and why
-- Break down complex information into simple steps
-- Suggest next actions when appropriate
-- Ask for confirmation before consequential actions
-- Be warm and friendly, like a helpful friend
+Your Mission:
+1. Make digital daily life easy, reassuring, and stress-free.
+2. Help seniors track medications, doctor appointments, water hydration, bills, and family calls.
+3. Protect seniors from phone, email, and text message scams with clear, non-alarmist vigilance.
+4. Explain letters, medical jargon, or tech questions in clear, conversational English (large font spirit, 8th-grade reading level, zero confusing tech slang).
 
-When analyzing messages or documents:
-- Provide a simple explanation of what it means
-- Highlight important information (dates, amounts, deadlines)
-- Identify any required actions
-- Point out potential warning signs if it seems suspicious
-- Recommend what the user should do next
-
-When creating reminders:
-- Confirm the details before saving
-- Use clear, specific titles
-- Include relevant details in the description
-
-When helping with safety:
-- Never claim certainty when evidence is unclear
-- Explain warning signs in simple terms
-- Suggest how to verify information safely
-- Recommend what to avoid
-
-Your tone should be warm, patient, and reassuring. You're here to help make technology easier and safer for seniors.`;
+Guidelines:
+- Speak warmly and respectfully, like a caring grandson, granddaughter, or trusted family friend.
+- Always be encouraging and validate feelings. Never sound dismissive or impatient.
+- When the senior mentions taking their pills, booking a doctor visit, scheduling a reminder, or logging a bill, proactively use your tools (create_reminder, add_medication, add_appointment, log_bill, toggle_medication).
+- Always summarize actions clearly: "I've added Dr. Sharma's visit to your calendar for Tuesday at 10 AM!"
+- Keep paragraphs short (2-3 sentences max) with clean bullet points.
+- If they are worried about an unexpected call, text, or bill, check for scams immediately and provide calm, protective instructions (e.g., "Do not click any links, do not share OTP, and do not send money").`;
 
 export async function runAgent(messages: AgentMessage[]): Promise<AgentResponse> {
   try {
-    // Add system prompt if not present
-    const messagesWithSystem = messages[0]?.role === 'system' 
-      ? messages 
-      : [{ role: 'system' as const, content: systemPrompt }, ...messages];
+    const messagesWithSystem =
+      messages[0]?.role === 'system'
+        ? messages
+        : [{ role: 'system' as const, content: systemPrompt }, ...messages];
 
-    // Call OpenAI API with tools
-    const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-      messages: messagesWithSystem.map(m => ({
+    // Call OpenRouter with Google Gemini
+    const response = await aiClient.chat.completions.create({
+      model: AI_MODEL,
+      messages: messagesWithSystem.map((m) => ({
         role: m.role,
-        content: m.content
+        content: m.content,
       })),
       tools: toolDefinitions,
-      tool_choice: 'auto'
+      tool_choice: 'auto',
+      temperature: 0.6,
+      max_tokens: 1000,
     });
 
-    const assistantMessage = response.choices[0].message;
-    
-    // Check if the model wants to call tools
+    const assistantMessage = response.choices[0]?.message;
+    if (!assistantMessage) {
+      return {
+        message: "Hello! I am SeniorBuddy. How can I help you have a wonderful day today?",
+      };
+    }
+
+    // Check if tool calls were triggered
     if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
       const toolResults: ToolResult[] = [];
-      
-      // Execute each tool call
+
       for (const toolCall of assistantMessage.tool_calls) {
-        const functionName = toolCall.function.name;
-        const functionArgs = JSON.parse(toolCall.function.arguments);
-        
-        const result = await executeTool(functionName, functionArgs);
-        toolResults.push(result);
+        if (toolCall.type === 'function' && toolCall.function) {
+          let functionArgs = {};
+          try {
+            functionArgs = JSON.parse(toolCall.function.arguments);
+          } catch {
+            functionArgs = {};
+          }
+
+          const result = await executeTool(toolCall.function.name, functionArgs);
+          toolResults.push(result);
+        }
       }
 
-      // Get final response with tool results
+      // Generate conversational follow-up incorporating tool results
       const messagesWithToolResults = [
         ...messagesWithSystem,
         {
           role: 'assistant' as const,
           content: assistantMessage.content || '',
-          tool_calls: assistantMessage.tool_calls
+          tool_calls: assistantMessage.tool_calls,
         },
         ...toolResults.map((result, index) => ({
           role: 'tool' as const,
           tool_call_id: assistantMessage.tool_calls![index].id,
-          content: JSON.stringify(result)
-        }))
+          content: JSON.stringify(result),
+        })),
       ];
 
-      const finalResponse = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-        messages: messagesWithToolResults
+      const finalResponse = await aiClient.chat.completions.create({
+        model: AI_MODEL,
+        messages: messagesWithToolResults,
+        temperature: 0.6,
+        max_tokens: 1000,
       });
 
       return {
-        message: finalResponse.choices[0].message.content || 'I apologize, but I encountered an issue processing your request.',
+        message:
+          finalResponse.choices[0]?.message.content ||
+          "I have updated that for you! Is there anything else you'd like me to look at?",
         toolCalls: assistantMessage.tool_calls,
-        toolResults
+        toolResults,
       };
     }
 
     return {
-      message: assistantMessage.content || 'I apologize, but I encountered an issue processing your request.'
+      message: assistantMessage.content || "I'm right here with you. How can I assist you next?",
     };
-
   } catch (error) {
-    console.error('Agent error:', error);
+    console.error('SeniorBuddy Agent error:', error);
     return {
-      message: 'I apologize, but I encountered an error. Please try again or contact support if the issue persists.'
+      message:
+        "I had a tiny hiccup connecting to my thinking service, but I am right here with you! Could you please repeat that or let me know what you'd like to do?",
     };
   }
 }
 
 export async function quickAction(action: string, context?: string): Promise<AgentResponse> {
-  const userMessage = context 
-    ? `I need help with ${action}. Here's the context: ${context}`
-    : `I need help with ${action}.`;
+  const userMessage = context
+    ? `I need assistance with ${action}. Here is the context: ${context}`
+    : `Please help me with ${action}.`;
 
-  return runAgent([
-    { role: 'user', content: userMessage }
-  ]);
+  return runAgent([{ role: 'user', content: userMessage }]);
 }

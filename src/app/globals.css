@@ -1,103 +1,68 @@
 @import "tailwindcss";
 
 :root {
-    --background: #ffffff;
-    --foreground: #171717;
+  --background: #fafaf9;
+  --foreground: #1c1917;
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 @theme inline {
-    --color-background: var(--background);
-    --color-foreground: var(--foreground);
-    --font-sans: var(--font-geist-sans);
-    --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --background: #0a0a0a;
-        --foreground: #ededed;
-    }
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
-    background: var(--background);
-    color: var(--foreground);
-    font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 19px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Senior-friendly accessibility improvements */
-* {
-    /* Improve focus visibility for keyboard navigation */
-    :focus-visible {
-        outline: 3px solid #3b82f6;
-        outline-offset: 2px;
-    }
+/* Accessible focus rings */
+*:focus-visible {
+  outline: 3px solid #d97706;
+  outline-offset: 3px;
 }
 
-/* Ensure high contrast for text */
-body {
-    color: #1a1a1a;
-    background-color: #ffffff;
+/* Accessible touch targets & buttons */
+button, a.button {
+  min-height: 48px;
+  touch-action: manipulation;
 }
 
-/* Large, readable text by default */
-body {
-    font-size: 18px;
-    line-height: 1.6;
+/* Card glassmorphism subtle accents */
+.senior-card {
+  background: #ffffff;
+  border-radius: 1.5rem;
+  border: 1.5px solid #e7e5e4;
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Improve button readability */
-button {
-    min-height: 48px;
-    min-width: 48px;
-    font-size: 18px;
+.senior-card:hover {
+  border-color: #f59e0b;
+  box-shadow: 0 8px 24px -4px rgba(245, 158, 11, 0.12);
+  transform: translateY(-2px);
 }
 
-/* Ensure links are distinguishable */
-a {
-    text-decoration: underline;
-    text-decoration-thickness: 2px;
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
 }
 
-a:hover {
-    text-decoration-thickness: 3px;
+::-webkit-scrollbar-track {
+  background: #f5f5f4;
 }
 
-/* Improve form element accessibility */
-input,
-textarea,
-select {
-    font-size: 18px;
-    padding: 12px;
-    border: 2px solid #333;
-    border-radius: 8px;
+::-webkit-scrollbar-thumb {
+  background: #d6d3d1;
+  border-radius: 5px;
 }
 
-input:focus,
-textarea:focus,
-select:focus {
-    outline: 3px solid #3b82f6;
-    outline-offset: 2px;
-    border-color: #3b82f6;
-}
-
-/* Better error message visibility */
-.error {
-    color: #dc2626;
-    font-weight: bold;
-    font-size: 18px;
-}
-
-/* Success message visibility */
-.success {
-    color: #16a34a;
-    font-weight: bold;
-    font-size: 18px;
-}
-
-/* Warning message visibility */
-.warning {
-    color: #ca8a04;
-    font-weight: bold;
-    font-size: 18px;
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a29e;
 }

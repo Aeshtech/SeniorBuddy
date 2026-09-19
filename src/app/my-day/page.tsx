@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import SpeechSpeaker from '@/components/SpeechSpeaker';
 
 interface Reminder {
   id: number;
@@ -28,19 +29,30 @@ interface Appointment {
   location?: string;
 }
 
+interface Medication {
+  id: number;
+  name: string;
+  dosage: string;
+  frequency: string;
+  times: string[];
+  instructions?: string;
+  takenToday: boolean;
+}
+
 interface MyDayData {
   reminders: Reminder[];
   tasks: Task[];
   appointments: Appointment[];
+  medications: Medication[];
 }
 
 export default function MyDayPage() {
   const [myDay, setMyDay] = useState<MyDayData | null>(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchMyDay();
-  }, []);
+  const [showAddReminder, setShowAddReminder] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDate, setNewDate] = useState('');
+  const [newDesc, setNewDesc] = useState('');
 
   const fetchMyDay = async () => {
     try {
@@ -54,12 +66,16 @@ export default function MyDayPage() {
     }
   };
 
-  const toggleReminder = async (id: number, completed: boolean) => {
+  useEffect(() => {
+    fetchMyDay();
+  }, []);
+
+  const toggleReminder = async (id: number, currentCompleted: boolean) => {
     try {
       await fetch(`/api/reminders/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: !completed })
+        body: JSON.stringify({ completed: !currentCompleted }),
       });
       fetchMyDay();
     } catch (error) {
@@ -68,9 +84,10 @@ export default function MyDayPage() {
   };
 
   const deleteReminder = async (id: number) => {
+    if (!confirm('Are you sure you want to remove this reminder?')) return;
     try {
       await fetch(`/api/reminders/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
       });
       fetchMyDay();
     } catch (error) {
@@ -78,201 +95,361 @@ export default function MyDayPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
-        <p className="text-2xl text-gray-600">Loading your day...</p>
-      </div>
-    );
-  }
+  const handleToggleMed = async (id: number) => {
+    try {
+      await fetch(`/api/medications/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toggleTaken: true }),
+      });
+      fetchMyDay();
+    } catch (error) {
+      console.error('Failed to toggle medication:', error);
+    }
+  };
+
+  const handleCreateReminder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+
+    try {
+      const res = await fetch('/api/reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTitle.trim(),
+          dueDate: newDate || new Date().toISOString().split('T')[0],
+          description: newDesc.trim() || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        setShowAddReminder(false);
+        setNewTitle('');
+        setNewDate('');
+        setNewDesc('');
+        fetchMyDay();
+      }
+    } catch (err) {
+      console.error('Failed to create reminder:', err);
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const fullDaySummary = myDay
+    ? `Today's schedule: You have ${myDay.medications?.length || 0} medications, ${
+        myDay.appointments?.length || 0
+      } doctor appointments, and ${myDay.reminders?.length || 0} reminders.`
+    : 'Your day schedule is being loaded.';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      {/* Navigation */}
-      <nav className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <Link href="/" className="text-2xl font-bold text-blue-600">← Back</Link>
-            <h1 className="text-2xl font-bold text-gray-800">My Day</h1>
-            <div className="w-20" />
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12 space-y-10">
+      {/* Header Banner */}
+      <div className="bg-amber-50 rounded-3xl p-6 sm:p-10 border-2 border-amber-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm">
+        <div className="flex items-center gap-4">
+          <span className="w-16 h-16 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-4xl shadow-md">
+            📅
+          </span>
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-black text-stone-900">
+              My Day & Daily Planner
+            </h1>
+            <p className="text-stone-600 text-lg font-medium">
+              Your clear, large-print daily checklist of pills, doctor visits, and routines.
+            </p>
           </div>
         </div>
-      </nav>
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-          <h2 className="text-3xl font-bold text-gray-800 mb-6">
-            Today's Overview
-          </h2>
-          
-          {!myDay || (myDay.reminders.length === 0 && myDay.tasks.length === 0 && myDay.appointments.length === 0) ? (
-            <div className="text-center py-12">
-              <p className="text-2xl text-gray-600 mb-4">You have no upcoming items!</p>
-              <Link 
-                href="/assistant" 
-                className="inline-block bg-blue-500 text-white px-6 py-3 rounded-xl text-lg font-bold hover:bg-blue-600 transition-colors"
+        <div className="flex flex-wrap items-center gap-3">
+          <SpeechSpeaker text={fullDaySummary} label="Read Schedule" size="md" />
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="bg-white hover:bg-stone-100 text-stone-800 font-bold px-4 py-2.5 rounded-xl border border-stone-300 shadow-xs text-base cursor-pointer flex items-center gap-2"
+            title="Print a copy for your refrigerator or bedside table"
+          >
+            <span>🖨️</span>
+            <span>Print Schedule</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAddReminder(true)}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-black px-5 py-2.5 rounded-xl shadow-md text-base cursor-pointer"
+          >
+            + Add Reminder
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-center py-12 text-stone-500 text-xl font-medium">
+          Organizing your schedule...
+        </p>
+      ) : (
+        <div className="space-y-8">
+          {/* Medications Section */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border-2 border-stone-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-black text-stone-900 flex items-center gap-3">
+                <span>💊</span> Today's Pill & Medicine Schedule
+              </h2>
+              <Link
+                href="/medications"
+                className="text-base font-bold text-emerald-700 hover:underline no-underline"
               >
-                Ask Assistant to Add Items
+                Manage Pill Box ➔
               </Link>
             </div>
-          ) : (
-            <>
-              {/* Reminders Section */}
-              {myDay.reminders.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-2xl font-bold text-gray-700 mb-4 flex items-center gap-2">
-                    🔔 Reminders
-                  </h3>
-                  <div className="space-y-4">
-                    {myDay.reminders.map((reminder) => (
-                      <div
-                        key={reminder.id}
-                        className={`p-6 rounded-xl border-2 transition-all ${
-                          reminder.completed
-                            ? 'bg-gray-50 border-gray-200 opacity-60'
-                            : 'bg-blue-50 border-blue-200'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className={`text-xl font-bold ${reminder.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                              {reminder.title}
-                            </h4>
-                            {reminder.description && (
-                              <p className="text-lg text-gray-600 mt-2">{reminder.description}</p>
-                            )}
-                            <p className="text-lg text-gray-500 mt-2">
-                              Due: {new Date(reminder.dueDate).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex gap-2 ml-4">
-                            <button
-                              onClick={() => toggleReminder(reminder.id, reminder.completed)}
-                              className="p-3 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors"
-                              title={reminder.completed ? 'Mark as incomplete' : 'Mark as complete'}
-                            >
-                              {reminder.completed ? '↩️' : '✓'}
-                            </button>
-                            <button
-                              onClick={() => deleteReminder(reminder.id)}
-                              className="p-3 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
-                              title="Delete"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
-              {/* Tasks Section */}
-              {myDay.tasks.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-2xl font-bold text-gray-700 mb-4 flex items-center gap-2">
-                    📋 Tasks
-                  </h3>
-                  <div className="space-y-4">
-                    {myDay.tasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className={`p-6 rounded-xl border-2 transition-all ${
-                          task.completed
-                            ? 'bg-gray-50 border-gray-200 opacity-60'
-                            : 'bg-purple-50 border-purple-200'
+            {myDay?.medications && myDay.medications.length > 0 ? (
+              <div className="space-y-3">
+                {myDay.medications.map((med) => (
+                  <div
+                    key={med.id}
+                    className={`p-5 rounded-2xl border-2 transition-all flex items-center justify-between gap-4 ${
+                      med.takenToday
+                        ? 'bg-emerald-50/60 border-emerald-300'
+                        : 'bg-white border-stone-200 hover:border-emerald-300'
+                    }`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleMed(med.id)}
+                        className={`w-11 h-11 rounded-xl flex items-center justify-center text-2xl font-bold cursor-pointer transition-all ${
+                          med.takenToday
+                            ? 'bg-emerald-600 text-white'
+                            : 'border-2 border-stone-400 bg-white hover:border-emerald-500 text-transparent'
                         }`}
+                        title={med.takenToday ? 'Mark as untaken' : 'Mark as taken'}
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className={`text-xl font-bold ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                              {task.title}
-                            </h4>
-                            {task.description && (
-                              <p className="text-lg text-gray-600 mt-2">{task.description}</p>
-                            )}
-                            {task.dueDate && (
-                              <p className="text-lg text-gray-500 mt-2">
-                                Due: {new Date(task.dueDate).toLocaleDateString()}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex gap-2 ml-4">
-                            <button
-                              onClick={() => toggleReminder(task.id, task.completed)}
-                              className="p-3 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors"
-                              title={task.completed ? 'Mark as incomplete' : 'Mark as complete'}
-                            >
-                              {task.completed ? '↩️' : '✓'}
-                            </button>
-                            <button
-                              onClick={() => deleteReminder(task.id)}
-                              className="p-3 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
-                              title="Delete"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Appointments Section */}
-              {myDay.appointments.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-2xl font-bold text-gray-700 mb-4 flex items-center gap-2">
-                    📅 Appointments
-                  </h3>
-                  <div className="space-y-4">
-                    {myDay.appointments.map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        className="p-6 rounded-xl border-2 bg-green-50 border-green-200"
-                      >
-                        <h4 className="text-xl font-bold text-gray-800">{appointment.title}</h4>
-                        {appointment.description && (
-                          <p className="text-lg text-gray-600 mt-2">{appointment.description}</p>
-                        )}
-                        <div className="mt-3 space-y-1">
-                          <p className="text-lg text-gray-600">
-                            📆 {new Date(appointment.date).toLocaleDateString()}
+                        ✓
+                      </button>
+                      <div>
+                        <h3
+                          className={`text-xl font-black ${
+                            med.takenToday ? 'line-through text-stone-500' : 'text-stone-900'
+                          }`}
+                        >
+                          {med.name} — {med.dosage}
+                        </h3>
+                        <p className="text-sm text-stone-600">
+                          {med.frequency} · Scheduled for {med.times.join(', ')}
+                        </p>
+                        {med.instructions && (
+                          <p className="text-xs text-amber-800 font-medium mt-1">
+                            Note: {med.instructions}
                           </p>
-                          {appointment.time && (
-                            <p className="text-lg text-gray-600">
-                              ⏰ {appointment.time}
-                            </p>
-                          )}
-                          {appointment.location && (
-                            <p className="text-lg text-gray-600">
-                              📍 {appointment.location}
-                            </p>
-                          )}
-                        </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                    </div>
 
-        {/* Add New Item */}
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl shadow-lg p-8 text-white">
-          <h3 className="text-2xl font-bold mb-4">Need to add something?</h3>
-          <p className="text-xl mb-6">Ask your AI assistant to create reminders or add tasks</p>
-          <Link 
-            href="/assistant" 
-            className="inline-block bg-white text-blue-600 px-8 py-4 rounded-xl text-xl font-bold hover:bg-blue-50 transition-colors"
-          >
-            Talk to Assistant
-          </Link>
+                    <span
+                      className={`text-xs font-black uppercase px-3 py-1 rounded-full ${
+                        med.takenToday
+                          ? 'bg-emerald-200 text-emerald-900'
+                          : 'bg-amber-200 text-amber-950'
+                      }`}
+                    >
+                      {med.takenToday ? 'Taken' : 'Pending'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-stone-500 py-3">No medications scheduled for today.</p>
+            )}
+          </div>
+
+          {/* Appointments Section */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border-2 border-stone-200 shadow-sm space-y-4">
+            <h2 className="text-2xl font-black text-stone-900 flex items-center gap-3">
+              <span>🩺</span> Doctor Appointments & Visits
+            </h2>
+
+            {myDay?.appointments && myDay.appointments.length > 0 ? (
+              <div className="space-y-4">
+                {myDay.appointments.map((apt) => (
+                  <div
+                    key={apt.id}
+                    className="p-6 rounded-2xl bg-sky-50 border-2 border-sky-300 space-y-2"
+                  >
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <h3 className="text-2xl font-black text-sky-950">{apt.title}</h3>
+                      <span className="text-sm font-black uppercase bg-sky-200 text-sky-900 px-3 py-1 rounded-full">
+                        {apt.time || 'All Day'}
+                      </span>
+                    </div>
+
+                    {apt.location && (
+                      <p className="text-base text-stone-700 font-bold flex items-center gap-2">
+                        <span>📍 Location:</span>
+                        <span>{apt.location}</span>
+                      </p>
+                    )}
+
+                    {apt.description && (
+                      <p className="text-sm text-stone-600 bg-white/70 p-3 rounded-xl">
+                        💡 {apt.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-stone-500 py-3">No doctor appointments on your calendar today.</p>
+            )}
+          </div>
+
+          {/* Reminders & Routines Section */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border-2 border-stone-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-black text-stone-900 flex items-center gap-3">
+                <span>⏰</span> Daily Reminders & Routines
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowAddReminder(true)}
+                className="text-base font-bold text-amber-700 hover:underline cursor-pointer"
+              >
+                + New Reminder
+              </button>
+            </div>
+
+            {myDay?.reminders && myDay.reminders.length > 0 ? (
+              <div className="space-y-3">
+                {myDay.reminders.map((rem) => (
+                  <div
+                    key={rem.id}
+                    className={`p-5 rounded-2xl border-2 transition-all flex items-center justify-between gap-4 ${
+                      rem.completed ? 'bg-stone-100 border-stone-300' : 'bg-white border-amber-200'
+                    }`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <button
+                        type="button"
+                        onClick={() => toggleReminder(rem.id, rem.completed)}
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl font-bold cursor-pointer transition-all ${
+                          rem.completed
+                            ? 'bg-amber-600 text-white'
+                            : 'border-2 border-stone-400 bg-white hover:border-amber-500 text-transparent'
+                        }`}
+                        title={rem.completed ? 'Mark as incomplete' : 'Mark as done'}
+                      >
+                        ✓
+                      </button>
+                      <div>
+                        <h3
+                          className={`text-xl font-black ${
+                            rem.completed ? 'line-through text-stone-500' : 'text-stone-900'
+                          }`}
+                        >
+                          {rem.title}
+                        </h3>
+                        {rem.description && (
+                          <p className="text-sm text-stone-600 mt-0.5">{rem.description}</p>
+                        )}
+                        <p className="text-xs text-stone-500 mt-1">Due: {rem.dueDate}</p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => deleteReminder(rem.id)}
+                      className="text-stone-400 hover:text-red-600 p-2 rounded-xl text-lg font-bold cursor-pointer"
+                      title="Delete reminder"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-stone-500 py-3">All reminders completed for today!</p>
+            )}
+          </div>
         </div>
-      </main>
+      )}
+
+      {/* Add Reminder Modal */}
+      {showAddReminder && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+        >
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-2 border-stone-200 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-stone-200">
+              <h2 className="text-2xl font-black text-stone-900">Add Reminder</h2>
+              <button
+                type="button"
+                onClick={() => setShowAddReminder(false)}
+                className="w-10 h-10 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xl cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateReminder} className="space-y-4">
+              <div>
+                <label className="block text-base font-bold text-stone-800 mb-1">
+                  What to remind about *
+                </label>
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="e.g. Call grandson, Take morning walk"
+                  required
+                  className="w-full text-lg p-3.5 rounded-xl border-2 border-stone-300 focus:border-amber-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-base font-bold text-stone-800 mb-1">Due Date</label>
+                <input
+                  type="date"
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                  className="w-full text-lg p-3.5 rounded-xl border-2 border-stone-300 focus:border-amber-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-base font-bold text-stone-800 mb-1">
+                  Helpful Notes
+                </label>
+                <input
+                  type="text"
+                  value={newDesc}
+                  onChange={(e) => setNewDesc(e.target.value)}
+                  placeholder="e.g. Bring umbrella if cloudy"
+                  className="w-full text-lg p-3.5 rounded-xl border-2 border-stone-300 focus:border-amber-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="flex gap-4 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddReminder(false)}
+                  className="flex-1 py-3 bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold rounded-xl text-lg cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-stone-950 font-black rounded-xl text-lg shadow-md cursor-pointer"
+                >
+                  Save Reminder
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

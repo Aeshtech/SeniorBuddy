@@ -1,417 +1,336 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState } from 'react';
+import SpeechSpeaker from '@/components/SpeechSpeaker';
 
 export default function SafetyPage() {
-    const [message, setMessage] = useState("");
-    const [analysis, setAnalysis] = useState<any>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [selectedImage, setSelectedImage] = useState<File | null>(null);
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+  const [analysis, setAnalysis] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-    const analyzeMessage = async () => {
-        if (!message.trim()) return;
+  const sampleScams = [
+    {
+      title: '🚨 Fake Bank Alert',
+      text: 'URGENT: Your Wells Fargo account has been locked due to suspicious activity. Click here to verify your identity and restore access: http://bit.ly/secure-wf-login',
+    },
+    {
+      title: '🎁 Fake Lottery / Prize',
+      text: 'Congratulations! You have been selected as the 2nd prize winner of $250,000 in the Senior Sweepstakes. To claim your funds, please wire a $250 processing fee.',
+    },
+    {
+      title: '👮 Fake IRS / Arrest Threat',
+      text: 'This is Officer Davis from the IRS. An immediate warrant is issued for your arrest due to unpaid federal taxes. Call back now or buy $500 Apple gift cards to clear your record.',
+    },
+    {
+      title: '👵 Grandchild Imposter',
+      text: 'Grandma, it’s me! I am on a road trip with a friend and got into an accident. My phone is broken and I am in jail. Please don’t tell mom, just wire $1,200 to my public defender right away!',
+    },
+  ];
 
-        setIsLoading(true);
-        try {
-            const response = await fetch("/api/agent", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action: "safety",
-                    context: message,
-                }),
-            });
+  const analyzeMessage = async (textToAnalyze?: string) => {
+    const content = textToAnalyze || message;
+    if (!content.trim()) return;
 
-            const data = await response.json();
-            setAnalysis({
-                message: message,
-                result: data.message,
-                warningSigns: extractWarningSigns(data.message),
-                recommendation: extractRecommendation(data.message),
-            });
-        } catch (error) {
-            console.error("Error analyzing message:", error);
-            setAnalysis({
-                message: message,
-                result: "Sorry, I encountered an error analyzing the message. Please try again.",
-                warningSigns: [],
-                recommendation:
-                    "Please try again or contact support if the issue persists.",
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'user',
+              content: `Please analyze this message to see if it is a scam targeting a senior citizen: "${content}". Tell me: 1. Is it a scam or safe? 2. What are the red flags? 3. Exactly what should I do (e.g. hang up, do not pay, verify)? Keep language simple and reassuring.`,
+            },
+          ],
+        }),
+      });
 
-    const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setSelectedImage(file);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setImagePreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
+      const data = await response.json();
+      const rawText: string = data.message || '';
 
-    const analyzeImage = async () => {
-        if (!selectedImage) return;
+      const isScam =
+        rawText.toLowerCase().includes('scam') ||
+        rawText.toLowerCase().includes('fraud') ||
+        rawText.toLowerCase().includes('warning') ||
+        rawText.toLowerCase().includes('do not');
 
-        setIsLoading(true);
-        try {
-            const formData = new FormData();
-            formData.append("file", selectedImage);
-            formData.append(
-                "context",
-                "Analyze this image for safety concerns and warning signs",
-            );
+      setAnalysis({
+        message: content,
+        result: rawText,
+        isScam,
+      });
+    } catch (error) {
+      console.error('Error analyzing message:', error);
+      setAnalysis({
+        message: content,
+        result:
+          'I could not reach the checker service right now. As a safe rule of thumb: If someone is asking for money, gift cards, or your password, DO NOT give it to them!',
+        isScam: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-            const response = await fetch("/api/analyze-image", {
-                method: "POST",
-                body: formData,
-            });
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      setAnalysis(null);
+    }
+  };
 
-            const data = await response.json();
+  const analyzeImage = async () => {
+    if (!selectedImage) return;
 
-            setAnalysis({
-                message: "Uploaded image",
-                result:
-                    data.analysis || "Sorry, I could not analyze the image.",
-                warningSigns: extractWarningSigns(data.analysis || ""),
-                recommendation: extractRecommendation(data.analysis || ""),
-                image: imagePreview,
-            });
-        } catch (error) {
-            console.error("Error analyzing image:", error);
-            setAnalysis({
-                message: "Uploaded image",
-                result: "Sorry, I encountered an error analyzing the image. Please try again.",
-                warningSigns: [],
-                recommendation:
-                    "Please try again or contact support if the issue persists.",
-                image: imagePreview,
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    setIsLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedImage);
+      formData.append(
+        'context',
+        'Analyze this photo of a letter, screen text, or email. Check if it is a scam or phishing attempt targeting seniors.'
+      );
 
-    const clearImage = () => {
-        setSelectedImage(null);
-        setImagePreview(null);
-    };
+      const response = await fetch('/api/analyze-image', {
+        method: 'POST',
+        body: formData,
+      });
 
-    const extractWarningSigns = (result: string): string[] => {
-        // This is a simple extraction - in production, the AI would structure this better
-        const signs: string[] = [];
-        const lowerResult = result.toLowerCase();
+      const data = await response.json();
+      const summary = data.analysis || data.data?.summary || 'Image analyzed.';
+      const isScam = Boolean(data.data?.isSuspicious);
 
-        if (
-            lowerResult.includes("urgent") ||
-            lowerResult.includes("immediate")
-        ) {
-            signs.push("Creates urgency or pressure");
-        }
-        if (
-            lowerResult.includes("money") ||
-            lowerResult.includes("payment") ||
-            lowerResult.includes("account")
-        ) {
-            signs.push("Requests money or account access");
-        }
-        if (
-            lowerResult.includes("password") ||
-            lowerResult.includes("social security") ||
-            lowerResult.includes("personal")
-        ) {
-            signs.push("Asks for personal information");
-        }
-        if (
-            lowerResult.includes("click") ||
-            lowerResult.includes("link") ||
-            lowerResult.includes("download")
-        ) {
-            signs.push("Contains suspicious links or downloads");
-        }
-        if (
-            lowerResult.includes("prize") ||
-            lowerResult.includes("winner") ||
-            lowerResult.includes("congratulations")
-        ) {
-            signs.push("Promises prizes or rewards");
-        }
+      setAnalysis({
+        message: 'Photo of letter / screen',
+        result: summary,
+        isScam,
+        image: imagePreview,
+      });
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-        return signs.length > 0 ? signs : ["No obvious warning signs detected"];
-    };
+  const clearAll = () => {
+    setMessage('');
+    setSelectedImage(null);
+    setImagePreview(null);
+    setAnalysis(null);
+  };
 
-    const extractRecommendation = (result: string): string => {
-        const lowerResult = result.toLowerCase();
-
-        if (
-            lowerResult.includes("safe") ||
-            lowerResult.includes("legitimate")
-        ) {
-            return "This message appears to be safe. However, always verify with the sender through a different channel if you're unsure.";
-        }
-
-        if (
-            lowerResult.includes("suspicious") ||
-            lowerResult.includes("scam") ||
-            lowerResult.includes("dangerous")
-        ) {
-            return "Do not respond, click any links, or provide any information. Contact the organization directly through their official website or phone number to verify.";
-        }
-
-        return "Please be cautious. Verify the sender's identity through a different channel before taking any action.";
-    };
-
-    return (
-        <div className="min-h-screen bg-gradient-to-b from-red-50 to-white">
-            {/* Navigation */}
-            <nav className="bg-white shadow-sm border-b border-gray-200">
-                <div className="max-w-4xl mx-auto px-4 py-4">
-                    <div className="flex justify-between items-center">
-                        <Link
-                            href="/"
-                            className="text-2xl font-bold text-blue-600"
-                        >
-                            ← Back
-                        </Link>
-                        <h1 className="text-2xl font-bold text-gray-800">
-                            🛡️ Safety Check
-                        </h1>
-                        <div className="w-20" />
-                    </div>
-                </div>
-            </nav>
-
-            <main className="max-w-4xl mx-auto px-4 py-8">
-                {/* Introduction */}
-                <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-                    <h2 className="text-3xl font-bold text-gray-800 mb-4">
-                        Is This Message Safe?
-                    </h2>
-                    <p className="text-xl text-gray-600 mb-6">
-                        Paste any message you're unsure about, and I'll help you
-                        identify warning signs and stay safe.
-                    </p>
-
-                    {/* Message Input */}
-                    <div className="mb-6">
-                        <label className="block text-lg font-semibold text-gray-700 mb-2">
-                            Paste the message here:
-                        </label>
-                        <textarea
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                            placeholder="Paste the suspicious message here..."
-                            className="w-full p-4 text-lg border-2 border-gray-300 rounded-xl focus:border-red-500 focus:outline-none min-h-[200px]"
-                            disabled={isLoading}
-                        />
-                    </div>
-
-                    {/* Image Upload */}
-                    <div className="mb-6">
-                        <label className="block text-lg font-semibold text-gray-700 mb-2">
-                            Or upload an image:
-                        </label>
-                        <input
-                            type="file"
-                            onChange={handleImageSelect}
-                            accept="image/*"
-                            className="w-full p-4 text-lg border-2 border-gray-300 rounded-xl focus:border-red-500 focus:outline-none"
-                            disabled={isLoading}
-                        />
-                    </div>
-
-                    {/* Image Preview */}
-                    {imagePreview && (
-                        <div className="mb-6">
-                            <img
-                                src={imagePreview}
-                                alt="Preview"
-                                className="max-w-full h-auto rounded-lg border-2 border-gray-300"
-                            />
-                            <div className="flex gap-2 mt-2">
-                                <button
-                                    onClick={analyzeImage}
-                                    disabled={isLoading}
-                                    className="bg-red-500 text-white px-6 py-3 rounded-xl text-lg font-bold hover:bg-red-600 transition-colors disabled:opacity-50"
-                                >
-                                    Analyze Image
-                                </button>
-                                <button
-                                    onClick={clearImage}
-                                    disabled={isLoading}
-                                    className="bg-gray-500 text-white px-6 py-3 rounded-xl text-lg font-bold hover:bg-gray-600 transition-colors disabled:opacity-50"
-                                >
-                                    Remove
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    <button
-                        onClick={analyzeMessage}
-                        disabled={isLoading || !message.trim()}
-                        className="w-full bg-red-500 text-white px-8 py-4 rounded-xl text-xl font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isLoading ? "Analyzing..." : "Check Message Safety"}
-                    </button>
-                </div>
-
-                {/* Analysis Results */}
-                {analysis && (
-                    <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-                        <h3 className="text-2xl font-bold text-gray-800 mb-6">
-                            Analysis Results
-                        </h3>
-
-                        {/* Original Message */}
-                        <div className="bg-gray-50 p-4 rounded-xl mb-6">
-                            <h4 className="text-lg font-semibold text-gray-700 mb-2">
-                                Original Message:
-                            </h4>
-                            {analysis.image && (
-                                <img
-                                    src={analysis.image}
-                                    alt="Uploaded image"
-                                    className="max-w-full h-auto rounded-lg mb-3"
-                                />
-                            )}
-                            <p className="text-gray-600 whitespace-pre-wrap">
-                                {analysis.message}
-                            </p>
-                        </div>
-
-                        {/* AI Analysis */}
-                        <div className="mb-6">
-                            <h4 className="text-lg font-semibold text-gray-700 mb-2">
-                                What I Found:
-                            </h4>
-                            <p className="text-gray-700 text-lg leading-relaxed">
-                                {analysis.result}
-                            </p>
-                        </div>
-
-                        {/* Warning Signs */}
-                        <div className="mb-6">
-                            <h4 className="text-lg font-semibold text-gray-700 mb-3">
-                                Warning Signs:
-                            </h4>
-                            <div className="space-y-2">
-                                {analysis.warningSigns.map(
-                                    (sign: string, index: number) => (
-                                        <div
-                                            key={index}
-                                            className={`p-3 rounded-lg ${
-                                                sign ===
-                                                "No obvious warning signs detected"
-                                                    ? "bg-green-50 text-green-700"
-                                                    : "bg-yellow-50 text-yellow-700"
-                                            }`}
-                                        >
-                                            <p className="text-lg">⚠️ {sign}</p>
-                                        </div>
-                                    ),
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Recommendation */}
-                        <div className="bg-blue-50 p-6 rounded-xl border-l-4 border-blue-500">
-                            <h4 className="text-lg font-semibold text-gray-700 mb-2">
-                                Recommendation:
-                            </h4>
-                            <p className="text-gray-700 text-lg leading-relaxed">
-                                {analysis.recommendation}
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Safety Tips */}
-                <div className="bg-white rounded-2xl shadow-lg p-8">
-                    <h3 className="text-2xl font-bold text-gray-800 mb-6">
-                        General Safety Tips
-                    </h3>
-                    <div className="space-y-4">
-                        <div className="flex items-start gap-4">
-                            <div className="text-3xl">🔒</div>
-                            <div>
-                                <h4 className="text-lg font-semibold text-gray-800">
-                                    Never share passwords or personal
-                                    information
-                                </h4>
-                                <p className="text-gray-600">
-                                    Legitimate organizations will never ask for
-                                    your password, Social Security number, or
-                                    bank details via email or text.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-start gap-4">
-                            <div className="text-3xl">📞</div>
-                            <div>
-                                <h4 className="text-lg font-semibold text-gray-800">
-                                    Verify through official channels
-                                </h4>
-                                <p className="text-gray-600">
-                                    If you're unsure, contact the company
-                                    directly using their official website or
-                                    phone number (not the one in the message).
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-start gap-4">
-                            <div className="text-3xl">🔗</div>
-                            <div>
-                                <h4 className="text-lg font-semibold text-gray-800">
-                                    Be careful with links
-                                </h4>
-                                <p className="text-gray-600">
-                                    Hover over links to see the actual URL. If
-                                    it looks suspicious or doesn't match the
-                                    company's official website, don't click.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-start gap-4">
-                            <div className="text-3xl">⏰</div>
-                            <div>
-                                <h4 className="text-lg font-semibold text-gray-800">
-                                    Watch for urgency
-                                </h4>
-                                <p className="text-gray-600">
-                                    Scammers often create false urgency to make
-                                    you act without thinking. Take your time and
-                                    verify before responding.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-start gap-4">
-                            <div className="text-3xl">🎁</div>
-                            <div>
-                                <h4 className="text-lg font-semibold text-gray-800">
-                                    If it sounds too good to be true...
-                                </h4>
-                                <p className="text-gray-600">
-                                    It probably is. Be skeptical of unexpected
-                                    prizes, lottery winnings, or requests to
-                                    help transfer money.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </main>
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12 space-y-10">
+      {/* Header Banner */}
+      <div className="bg-rose-50 rounded-3xl p-6 sm:p-10 border-2 border-rose-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm">
+        <div className="flex items-center gap-4">
+          <span className="w-16 h-16 rounded-2xl bg-rose-600 text-white flex items-center justify-center text-4xl shadow-md">
+            🛡️
+          </span>
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-black text-stone-900">
+              Scam & Fraud Shield
+            </h1>
+            <p className="text-stone-600 text-lg font-medium">
+              Got a strange phone call, text, or email? Let SeniorBuddy check if it is a scam before you respond.
+            </p>
+          </div>
         </div>
-    );
+
+        <SpeechSpeaker
+          text="Welcome to Scam Shield. If you received a suspicious text message, email, or phone call, paste it here or choose a test example below. SeniorBuddy will tell you if it is safe or a scam."
+          label="Listen to Guide"
+          size="md"
+        />
+      </div>
+
+      {/* Main Checker Box */}
+      <div className="bg-white rounded-3xl p-6 sm:p-10 border-2 border-stone-200 shadow-sm space-y-6">
+        <h2 className="text-2xl font-black text-stone-900">
+          Check a Message, Phone Call, or Letter
+        </h2>
+
+        {/* Preset Sample Scams to Test */}
+        <div>
+          <p className="text-sm font-bold uppercase tracking-wider text-stone-500 mb-2">
+            Try a common scam example with 1 tap:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {sampleScams.map((scam, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  setMessage(scam.text);
+                  analyzeMessage(scam.text);
+                }}
+                disabled={isLoading}
+                className="p-4 rounded-2xl border-2 border-stone-200 hover:border-rose-400 bg-stone-50 hover:bg-rose-50/50 text-left transition-all cursor-pointer"
+              >
+                <p className="font-black text-stone-900 text-base">{scam.title}</p>
+                <p className="text-xs text-stone-600 line-clamp-2 mt-1">{scam.text}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Text Area */}
+        <div className="space-y-2">
+          <label className="block text-lg font-bold text-stone-800">
+            Or paste what someone said, texted, or emailed you:
+          </label>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="e.g. Someone called saying they are from Medicare and need my card number to send a refund..."
+            rows={5}
+            className="w-full text-lg sm:text-xl p-4 rounded-2xl border-2 border-stone-300 focus:border-rose-500 focus:outline-hidden"
+          />
+        </div>
+
+        {/* Photo Upload Option */}
+        <div className="p-4 rounded-2xl bg-stone-50 border-2 border-dashed border-stone-300 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <p className="font-bold text-stone-900 text-base">Or attach a photo of the letter or screen:</p>
+            <p className="text-sm text-stone-600">Take a photo of a letter you received in the mailbox</p>
+          </div>
+          <input
+            type="file"
+            onChange={handleImageSelect}
+            accept="image/*"
+            className="hidden"
+            id="scam-image-input"
+          />
+          <label
+            htmlFor="scam-image-input"
+            className="bg-white hover:bg-stone-100 text-stone-800 font-bold px-5 py-2.5 rounded-xl border border-stone-300 shadow-2xs cursor-pointer"
+          >
+            📷 Attach Photo
+          </label>
+        </div>
+
+        {/* Image Preview if selected */}
+        {imagePreview && (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <img
+                src={imagePreview}
+                alt="Document to check"
+                className="w-20 h-20 rounded-xl object-cover border border-amber-400"
+              />
+              <p className="font-bold text-stone-800 text-sm">{selectedImage?.name}</p>
+            </div>
+            <button
+              type="button"
+              onClick={analyzeImage}
+              disabled={isLoading}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-black px-6 py-2.5 rounded-xl cursor-pointer"
+            >
+              Analyze Photo
+            </button>
+          </div>
+        )}
+
+        {/* Check Button */}
+        <div className="flex gap-4">
+          <button
+            type="button"
+            onClick={() => analyzeMessage()}
+            disabled={isLoading || !message.trim()}
+            className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black text-xl py-4 rounded-2xl shadow-md transition-all cursor-pointer"
+          >
+            {isLoading ? '⏳ SeniorBuddy is Checking...' : '🛡️ Check If This Is Safe'}
+          </button>
+          {analysis && (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold px-6 py-4 rounded-2xl text-lg cursor-pointer"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        {/* Results Banner */}
+        {analysis && (
+          <div className="space-y-6 pt-6 border-t border-stone-200">
+            <div
+              className={`p-6 rounded-3xl border-3 shadow-md space-y-3 ${
+                analysis.isScam
+                  ? 'bg-red-50 border-red-500 text-red-950'
+                  : 'bg-emerald-50 border-emerald-500 text-emerald-950'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-4xl">{analysis.isScam ? '🚨' : '✅'}</span>
+                  <h3 className="text-2xl sm:text-3xl font-black">
+                    {analysis.isScam ? 'Scam Warning: Do Not Respond!' : 'Appears to be Safe'}
+                  </h3>
+                </div>
+
+                <SpeechSpeaker text={analysis.result} size="sm" label="Read Advice" />
+              </div>
+
+              <div className="text-lg leading-relaxed font-medium whitespace-pre-wrap pt-2">
+                {analysis.result}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 4 Golden Rules for Staying Safe */}
+      <div className="bg-white rounded-3xl p-6 sm:p-10 border-2 border-stone-200 shadow-sm space-y-6">
+        <h2 className="text-2xl sm:text-3xl font-black text-stone-900 flex items-center gap-3">
+          <span>⭐</span> 4 Golden Safety Rules Every Senior Should Know
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-6 rounded-2xl bg-amber-50 border-2 border-amber-200 space-y-2">
+            <span className="text-3xl">💳</span>
+            <h3 className="text-xl font-black text-amber-950">1. Never Pay with Gift Cards</h3>
+            <p className="text-stone-700 text-base">
+              No government agency, utility company, or real business will ever ask you to buy Target, Apple, or Google Play gift cards to pay a bill or fine.
+            </p>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-blue-50 border-2 border-blue-200 space-y-2">
+            <span className="text-3xl">🔢</span>
+            <h3 className="text-xl font-black text-blue-950">2. Keep Your 6-Digit Codes Secret</h3>
+            <p className="text-stone-700 text-base">
+              If your phone receives a text message with a 6-digit verification code, never read it out to anyone over the phone—even if they claim to be your bank!
+            </p>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-purple-50 border-2 border-purple-200 space-y-2">
+            <span className="text-3xl">📞</span>
+            <h3 className="text-xl font-black text-purple-950">3. Hang Up & Call Directly</h3>
+            <p className="text-stone-700 text-base">
+              If someone calls claiming a family member is in jail, hospital, or trouble, hang up immediately and dial that family member or their parents directly.
+            </p>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-emerald-50 border-2 border-emerald-200 space-y-2">
+            <span className="text-3xl">🐢</span>
+            <h3 className="text-xl font-black text-emerald-950">4. Slow Down! Urgency Is a Trick</h3>
+            <p className="text-stone-700 text-base">
+              Scammers try to panic you by saying &quot;You must act within 10 minutes.&quot; Take a deep breath. Real problems can wait for you to ask your family first.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
