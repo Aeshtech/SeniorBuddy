@@ -1,26 +1,103 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+    --background: #ffffff;
+    --foreground: #171717;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --font-sans: var(--font-geist-sans);
+    --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+    :root {
+        --background: #0a0a0a;
+        --foreground: #ededed;
+    }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Senior-friendly accessibility improvements */
+* {
+    /* Improve focus visibility for keyboard navigation */
+    :focus-visible {
+        outline: 3px solid #3b82f6;
+        outline-offset: 2px;
+    }
+}
+
+/* Ensure high contrast for text */
+body {
+    color: #1a1a1a;
+    background-color: #ffffff;
+}
+
+/* Large, readable text by default */
+body {
+    font-size: 18px;
+    line-height: 1.6;
+}
+
+/* Improve button readability */
+button {
+    min-height: 48px;
+    min-width: 48px;
+    font-size: 18px;
+}
+
+/* Ensure links are distinguishable */
+a {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+}
+
+a:hover {
+    text-decoration-thickness: 3px;
+}
+
+/* Improve form element accessibility */
+input,
+textarea,
+select {
+    font-size: 18px;
+    padding: 12px;
+    border: 2px solid #333;
+    border-radius: 8px;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    outline: 3px solid #3b82f6;
+    outline-offset: 2px;
+    border-color: #3b82f6;
+}
+
+/* Better error message visibility */
+.error {
+    color: #dc2626;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+/* Success message visibility */
+.success {
+    color: #16a34a;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+/* Warning message visibility */
+.warning {
+    color: #ca8a04;
+    font-weight: bold;
+    font-size: 18px;
 }
