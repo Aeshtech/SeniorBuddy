@@ -29,8 +29,13 @@ body {
 }
 
 /* Accessible touch targets & buttons */
-button, a.button {
+button:not(.compact-btn), a.button:not(.compact-btn) {
   min-height: 48px;
+  touch-action: manipulation;
+}
+
+.compact-btn {
+  min-height: 0;
   touch-action: manipulation;
 }
 
