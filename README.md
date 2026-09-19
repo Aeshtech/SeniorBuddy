@@ -89,7 +89,7 @@ npm run start
 ```bash
 npm test
 ```
-Runs **31 tests across 7 test suites** covering security, sanitization, efficiency, scam detection, date normalization, and code quality — achieving **100% pass rate**.
+Runs **69 tests across 10 test suites** covering security, sanitization, rate limiting, scam detection, date normalization, API hardening, security middleware, efficiency, and code quality — achieving **100% pass rate**.
 
 ---
 
@@ -110,13 +110,29 @@ Every API route (`/api/bills`, `/api/reminders`, `/api/medications`, `/api/analy
 - **File Upload Security**: Image analysis endpoint validates MIME type and enforces 10MB file size limit
 
 ### 3. API Rate Limiting
-In-memory sliding window rate limiter (30 requests/minute per IP) protects all API endpoints from abuse. Returns HTTP `429 Too Many Requests` with `Retry-After` semantics.
+In-memory sliding window rate limiter (30 requests/minute per IP) protects **all 6 API endpoints** from abuse. Returns HTTP `429 Too Many Requests`.
 
-### 4. Custom Error Class
+### 4. Security Middleware (`src/middleware.ts`)
+A Next.js middleware applies OWASP-recommended headers to **every response**:
+- `Content-Security-Policy` — restricts script sources, blocks iframes, limits connections to `openrouter.ai`
+- `X-Content-Type-Options: nosniff` — prevents MIME-type sniffing attacks
+- `X-Frame-Options: DENY` — prevents clickjacking
+- `Referrer-Policy: strict-origin-when-cross-origin` — protects URL leakage
+- `Permissions-Policy` — disables camera/geolocation, allows microphone (for speech)
+
+### 5. CSRF Protection
+Mutating API requests (`POST/PUT/PATCH/DELETE`) validate that the `Origin` header matches the `Host` header, rejecting cross-origin requests with `403 Forbidden`.
+
+### 6. Custom Error Class
 `ValidationError` class cleanly separates user input errors (400) from server errors (500), preventing sensitive stack traces from leaking to clients.
 
-### 5. Scam Detection Engine
+### 7. Scam Detection Engine
 16-keyword heuristic engine flags predatory patterns: IRS threats, gift card demands, OTP requests, remote access scams, bitcoin demands, and more — with risk scoring (low/medium/high).
+
+### 8. Agent API Hardening
+- Message array capped at 50 messages per request
+- Individual message content capped at 2000 characters
+- Action and context strings sanitized with HTML stripping
 
 ---
 
@@ -129,6 +145,9 @@ Replaced blocking `better-sqlite3` (native C++ binaries incompatible with Vercel
 - **Persisted across hot reloads** via `globalThis.__seniorBuddyStore` singleton
 - **Sorted views** computed on demand with `Array.from(map.values()).sort()`
 
+### Response Caching
+- My-day API returns `Cache-Control: private, max-age=5, stale-while-revalidate=10` for dashboard freshness without redundant server hits
+
 ### Lazy AI Computation
 - Tool calls are only made when the AI agent determines they are necessary
 - Two-phase LLM pattern: tools execute first, then a final summarization call
@@ -139,15 +158,18 @@ Replaced blocking `better-sqlite3` (native C++ binaries incompatible with Vercel
 ## 🧪 Test Coverage
 
 ```
-Suite 1: AI Agent Tool Definitions & Schema Compliance   ✅ 2/2
-Suite 2: Fuzzy Date & Time Normalization                 ✅ 6/6
-Suite 3: Scam & Fraud Detection                          ✅ 5/5
-Suite 4: Secret & Environment Security                   ✅ 4/4
-Suite 5: Input Sanitization & Rate Limiting              ✅ 6/6
-Suite 6: Efficiency & Data Integrity                     ✅ 4/4
-Suite 7: Accessibility & Code Quality                    ✅ 4/4
+Suite 1:  AI Agent Tool Schema Compliance        ✅  3/3
+Suite 2:  Fuzzy Date & Time Normalization         ✅  9/9
+Suite 3:  Scam & Fraud Detection Engine           ✅  7/7
+Suite 4:  Secret & Environment Security           ✅  5/5
+Suite 5:  Input Sanitization Logic                ✅ 15/15
+Suite 6:  Rate Limiting Logic                     ✅  4/4
+Suite 7:  Efficiency & Data Integrity             ✅  5/5
+Suite 8:  API Route Security Hardening            ✅ 11/11
+Suite 9:  Accessibility & Code Quality            ✅  4/4
+Suite 10: Security Middleware & Headers            ✅  6/6
 
-Total: 31/31 (100%) 🏆
+Total: 69/69 (100%) 🏆
 ```
 
 ---
@@ -173,8 +195,10 @@ Total: 31/31 (100%) 🏆
 - **Font Scaling**: A / A+ / A++ in-app text-size selector available from the header.
 - **Touch Target Size**: All interactive elements ≥48px height, meeting WCAG 2.5.5 AAA.
 - **ARIA Compliance**: All interactive controls labeled with `aria-label` and correct roles.
+- **Semantic HTML**: `lang="en"`, `<main>`, `<header>`, `<footer>`, proper heading hierarchy.
 
 ---
 
 ## 📄 License
 MIT License. Built with ❤️ for our elders.
+
